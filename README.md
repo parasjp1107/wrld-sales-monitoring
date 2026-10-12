@@ -36,7 +36,7 @@ Replace the `databaseURL` placeholder with the URL from step 1.5. Only `database
 2. Click **uploading an existing file**, drag in all four files (including `.nojekyll`), and click **Commit changes**.
    - To make hidden files like `.nojekyll` show in Finder, press Cmd+Shift+. on Mac. In Windows Explorer, use View › Show › Hidden items.
 3. Go to **Settings › Pages**. Under **Build and deployment**, set Source to **Deploy from a branch**, Branch to **main**, and folder to **/ (root)**, then click **Save**.
-4. After about a minute the site is live at `https://<your-github-username>.github.io/wrld-sales-monitoring/`.
+4. After about a minute the site is live at `https://wrldcapital.github.io/sales/`.
 
 To change the app later, edit or re-upload the files in the repo. Pages redeploys on its own after each commit.
 
@@ -47,12 +47,17 @@ To change the app later, edit or re-upload the files in the repo. Pages redeploy
 - To bring over data from the old offline HTML file:
   1. In the old file, go to **Settings › Export JSON**.
   2. In the online app, go to **Settings › Import JSON** and choose that file.
-- Default sign-ins are `edgg` / `admin123`, `lead` / `admin123`, `support` / `admin123`, and `sro1` / `sro123`. **Change them right away** in **Settings › Users**.
+- Starter accounts (`edgg`, `lead`, `support`, `sro1`) come with initial passwords that are shared privately, not in this repo. Anyone who signs in with an initial password, or with a password an admin set for them, has to choose a new one (8+ characters) before they can continue.
 
 ## What changed from the offline file
 
 - **Team database built in.** The app connects to the Firebase project in `firebase-config.js` by itself, so nobody has to paste a URL in Settings. When the page opens, the cloud copy always takes priority, so a new browser can't overwrite the team's data.
-- **All modules for all roles.** SRO users can now open every module, including Teams, Compensation, Incentives, Targets, Expenses, Forfeitures, Accreditation, Reconciliation and Settings. SRO sales entries are still tagged as Daily perspective. To bring back the admin-only lock, open `index.html`, search for `ALL_ROLES_FULL_ACCESS = true`, and change it to `false`.
+- **Self sign-up and roles.** On the sign-in screen, people can click **Create an account** to request access. Their request shows up for Admins under **Settings › User Accounts**, where an Admin approves it and assigns a role:
+  - **Admin:** every module, including Settings and approving accounts.
+  - **Supervisor:** every module except Settings.
+  - **Staff:** Dashboard, Sales Records, Daily Sales Report, Payouts, Channel Summary, and Sales Teams (view only).
+  - **SRO:** Dashboard, Sales Records and Daily Sales Report. Their sales are tagged as Daily perspective.
+- **New password at first sign-in.** Anyone signing in with an initial password, or with a password an Admin set for them, has to choose a new one first.
 - **Safer sync format.** The data is saved to Firebase as a single JSON string. Firebase would otherwise drop empty lists, such as an empty user list, and the app would come back with missing data.
 - **Team-wide Reset and Erase.** **Settings › Reset to Sample Data** and **Clear Everything** now change the shared team data, and the confirmation message says so.
 
