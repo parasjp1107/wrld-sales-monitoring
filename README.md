@@ -58,6 +58,8 @@ To change the app later, edit or re-upload the files in the repo. Pages redeploy
   - **Staff:** Dashboard, Sales Records, Daily Sales Report, Payouts, Channel Summary, and Sales Teams (view only).
   - **SRO:** Dashboard, Sales Records and Daily Sales Report. Their sales are tagged as Daily perspective.
 - **New password at first sign-in.** Anyone signing in with an initial password, or with a password an Admin set for them, has to choose a new one first.
+- **Faster sync.** Each record is saved on its own under `wrld_sales_v2` in Firebase, so saving one edit sends about 1 KB instead of the whole database (about 550 KB). The old single-copy data under `wrld_sales_v1` is copied over once and kept as a backup.
+- **Lighter page.** The chart and Excel libraries (`lib/`), the starter data and the GL detail (`data/`) are separate files that browsers cache. The 1.8 MB GL detail only loads when someone opens Sales & Marketing Expenses.
 - **Safer sync format.** The data is saved to Firebase as a single JSON string. Firebase would otherwise drop empty lists, such as an empty user list, and the app would come back with missing data.
 - **Team-wide Reset and Erase.** **Settings › Reset to Sample Data** and **Clear Everything** now change the shared team data, and the confirmation message says so.
 
