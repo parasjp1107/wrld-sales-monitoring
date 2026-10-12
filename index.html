@@ -240,6 +240,38 @@ loadFirebaseScripts([
   .org-node .org-actions button{padding:3px 7px;font-size:10px}
   .org-add-row{display:flex;justify-content:center;gap:8px;padding:14px 0 4px;flex-wrap:wrap}
   .org-flat{display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-start;padding:10px 0}
+  /* ---- Org chart arrangement ---- */
+  /* Size the tree to its content so wide teams scroll instead of being clipped on the left */
+  ul.org-tree{width:max-content;min-width:100%;box-sizing:border-box}
+  .org-node{width:200px;min-width:200px;max-width:200px;box-sizing:border-box;display:inline-flex;flex-direction:column;align-items:center}
+  .org-node .org-name{width:100%}
+  .org-node .org-meta{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .org-node .org-actions{flex-wrap:nowrap;margin-top:auto;padding-top:6px}
+  .org-node .org-actions button{padding:3px 8px}
+  /* People with no reports are grouped in a grid under their manager */
+  ul.org-tree li.org-leaf-li{padding-left:.5em;padding-right:.5em}
+  .org-leaves{position:relative;padding-top:1em;display:flex;justify-content:center}
+  .org-leaves::before{content:'';position:absolute;top:0;left:50%;border-left:2px solid #cbd5e1;height:1em}
+  .org-leaves.in-branch{padding-top:0}
+  .org-leaves.in-branch::before{display:none}
+  .org-leaves-grid{display:grid;gap:12px;padding:14px;border:2px solid #cbd5e1;border-radius:14px;align-items:stretch;justify-content:center}
+  .org-leaves-grid .org-node{height:100%}
+  .org-leaves-head{grid-column:1/-1;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:center;margin-bottom:-4px}
+  html[data-theme="dark"] .org-leaves::before{border-color:#475569}
+  /* Arranged layout: leader on top, each manager's group in its own box, boxes wrap to fit the screen */
+  .org-chart{display:flex;flex-direction:column;align-items:center;padding:18px 12px;background:#fafbfd;border-radius:10px;border:1px dashed var(--border);overflow-x:auto}
+  .org-down{width:2px;height:16px;background:#cbd5e1;flex:none}
+  .org-branches{display:flex;flex-wrap:wrap;justify-content:center;align-items:flex-start;gap:16px;width:100%}
+  .org-branch{display:flex;flex-direction:column;align-items:center;padding:12px;border:2px solid #cbd5e1;border-radius:14px;background:rgba(148,163,184,.06)}
+  .org-branch.org-loose{border-style:dashed}
+  .org-members{display:grid;gap:10px;align-items:stretch;justify-content:center}
+  .org-members .org-node{height:100%}
+  .org-group-head{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:center;margin:0 0 8px}
+  html[data-theme="dark"] .org-chart{background:#0f172a;border-color:#1e293b}
+  @media (max-width:700px){ .org-members{grid-template-columns:200px !important} .org-branch{padding:8px} }
+  html[data-theme="dark"] .org-down{background:#475569}
+  html[data-theme="dark"] .org-branch{border-color:#475569;background:rgba(30,41,59,.45)}
+  html[data-theme="dark"] .org-leaves-grid{border-color:#475569;background:rgba(15,23,42,.35)}
 
   
   /* LOGIN SCREEN */
@@ -3798,7 +3830,7 @@ function renderOrgNode(p, isLeader){
     <div class="org-name" style="cursor:pointer" onclick="goSeller('${p.id}')" title="Open profile">${statusDot(p)}${esc(p.name)}</div>
     <div><span class="pill ${esc(p.roleKey)}" style="font-size:9px;padding:2px 7px">${esc(r?.label||p.roleKey)}</span></div>
     ${p.subTeam?`<div class="org-meta"><b>Team:</b> ${esc(p.subTeam)}</div>`:''}
-    ${p.email?`<div class="org-meta">${esc(p.email)}</div>`:''}
+    ${p.email?`<div class="org-meta" title="${esc(p.email)}">${esc(p.email)}</div>`:''}
     ${accBadge(p)}
     ${quotaBadge}
     <div class="org-actions">
@@ -3815,9 +3847,69 @@ function buildOrgTree(teamId, parentId){
   return DB.personnel.filter(p=>p.teamId===teamId && p.parentId===parentId && isWorking(p))
                      .map(p=>({person:p, children:buildOrgTree(teamId,p.id)}));
 }
+// Siblings: people who manage others first, then by role order (e.g. AM before AE before NP), then by name.
+function orgRoleRank(p){
+  const t = teamById(p.teamId); const tt = t && TEAM_TYPES[t.type];
+  const i = tt ? tt.roles.findIndex(r=>r.key===p.roleKey) : -1;
+  return i<0 ? 99 : i;
+}
+function sortOrgNodes(nodes){
+  return nodes.slice().sort((a,b)=>
+    (b.children.length>0) - (a.children.length>0) ||
+    orgRoleRank(a.person) - orgRoleRank(b.person) ||
+    String(a.person.name||'').localeCompare(String(b.person.name||'')));
+}
+function renderLeafGrid(nodes, inBranch){
+  const cols = Math.min(nodes.length, 4);
+  const byRole = {}; nodes.forEach(n=>{ const t=teamById(n.person.teamId); const r=t?ROLE_DEF(t.type,n.person.roleKey):null;
+    const k=(r&&r.label)||n.person.roleKey; byRole[k]=(byRole[k]||0)+1; });
+  const head = Object.entries(byRole).map(([k,v])=>v+' '+k+(v===1?'':'s')).join(' · ');
+  return `<div class="org-leaves${inBranch?' in-branch':''}"><div class="org-leaves-grid" style="grid-template-columns:repeat(${cols},200px)">
+    <div class="org-leaves-head">${esc(head)}</div>
+    ${nodes.map(n=>renderOrgNode(n.person,false)).join('')}</div></div>`;
+}
 function renderOrgChildren(nodes){
   if(!nodes.length) return '';
+  nodes = sortOrgNodes(nodes);
+  // A group of 3+ people with no reports of their own reads better as a compact grid
+  // than as one long row.
+  if(nodes.length>=3 && nodes.every(n=>!n.children.length)) return renderLeafGrid(nodes);
+  const managers = nodes.filter(n=>n.children.length), leaves = nodes.filter(n=>!n.children.length);
+  // Mixed group: managers keep their branches; the remaining individual contributors share one grid branch.
+  if(managers.length && leaves.length>=3){
+    return '<ul>'+managers.map(n=>`<li>${renderOrgNode(n.person,false)}${renderOrgChildren(n.children)}</li>`).join('')
+      + `<li class="org-leaf-li">${renderLeafGrid(leaves, true)}</li></ul>`;
+  }
   return '<ul>'+nodes.map(n=>`<li>${renderOrgNode(n.person,false)}${n.children.length?renderOrgChildren(n.children):''}</li>`).join('')+'</ul>';
+}
+
+function orgGroupLabel(nodes){
+  const by={}; nodes.forEach(n=>{ const t=teamById(n.person.teamId); const r=t?ROLE_DEF(t.type,n.person.roleKey):null;
+    const k=(r&&r.label)||n.person.roleKey||'Member'; by[k]=(by[k]||0)+1; });
+  return Object.entries(by).map(([k,v])=>v+' '+k+(v===1?'':'s')).join(' · ');
+}
+function orgMembersGrid(nodes, maxCols){
+  const cols=Math.max(1, Math.min(nodes.length, maxCols));
+  return `<div class="org-members" style="grid-template-columns:repeat(${cols},200px)">${nodes.map(n=>renderOrgNode(n.person,false)).join('')}</div>`;
+}
+// Lays out one level of the chart: managers get their own box (with their people inside),
+// people without reports are shown as a grid. Boxes wrap so the chart fits the screen.
+function renderOrgLevel(nodes, opts){
+  opts = opts||{};
+  nodes = sortOrgNodes(nodes);
+  const managers = nodes.filter(n=>n.children.length), leaves = nodes.filter(n=>!n.children.length);
+  if(!managers.length) return orgMembersGrid(leaves, opts.topLevel?4:2);
+  const boxes = managers.map(n=>`<div class="org-branch">
+      ${renderOrgNode(n.person, !!opts.rootsAreLeaders)}
+      <div class="org-down"></div>
+      <div class="org-group-head">${esc(orgGroupLabel(n.children))}</div>
+      ${renderOrgLevel(n.children)}
+    </div>`);
+  if(leaves.length) boxes.push(`<div class="org-branch org-loose">
+      <div class="org-group-head">${esc(opts.looseLabel||'Direct reports')} · ${esc(orgGroupLabel(leaves))}</div>
+      ${orgMembersGrid(leaves, 2)}
+    </div>`);
+  return `<div class="org-branches">${boxes.join('')}</div>`;
 }
 
 function renderTeamOrgCard(t){
@@ -3842,10 +3934,13 @@ function renderTeamOrgCard(t){
   } else if(!leader){
     // No leader on file (e.g. the SHE group has no DSD in the source roster).
     // Still render everyone, rooted at whoever has no parent, instead of hiding the team.
-    const roots = allPeople.filter(p=>!p.parentId);
-    const rootHTML = roots.map(p=>`<li>${renderOrgNode(p,true)}${renderOrgChildren(buildOrgTree(t.id,p.id))}</li>`).join('');
+    // Roots: no manager, or a manager who has left / is in another team (e.g. a resigned DSD).
+    const roots = allPeople.filter(p=>{ const m = p.parentId && personById(p.parentId);
+      return !m || !isWorking(m) || m.teamId!==t.id; });
+    const rootNodes = roots.map(p=>({person:p, children:buildOrgTree(t.id,p.id)}));
+    const rootHTML = rootNodes.length ? renderOrgLevel(rootNodes, {topLevel:true, looseLabel:'No manager on file'}) : '';
     chartHtml = `<div class="empty" style="color:var(--bad);margin-bottom:10px">No ${esc(leaderRole.label)} on file for this team. <button class="btn sm primary" onclick="addPerson('${t.id}','${leaderRole.key}')" style="margin-left:8px">+ Add ${esc(leaderRole.label)}</button></div>`
-      + (rootHTML?`<div class="org-tree-container"><ul class="org-tree">${rootHTML}</ul></div>`:'');
+      + (rootHTML?`<div class="org-chart">${rootHTML}</div>`:'');
   } else {
     // Build tree starting from leader; include orphans (no parentId) at the leader level
     let directReports = buildOrgTree(t.id, leader.id);
@@ -3855,8 +3950,7 @@ function renderTeamOrgCard(t){
     orphans.forEach(o=>{
       directReports.push({person:o, children: buildOrgTree(t.id, o.id)});
     });
-    const childrenHTML = directReports.length ? renderOrgChildren(directReports) : '';
-    chartHtml = `<div class="org-tree-container"><ul class="org-tree"><li>${renderOrgNode(leader,true)}${childrenHTML}</li></ul></div>`;
+    chartHtml = `<div class="org-chart">${renderOrgNode(leader,true)}${directReports.length?`<div class="org-down"></div>${renderOrgLevel(directReports,{topLevel:true})}`:''}</div>`;
   }
 
   return `
