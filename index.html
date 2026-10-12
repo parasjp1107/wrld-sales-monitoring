@@ -1667,7 +1667,7 @@ async function connectCloud(config, persist=true){
     console.error('Cloud connect failed:',e);
     CLOUD_CONNECTED = false;
     updateCloudIndicator();
-    toast('Connection failed: '+e.message,'error');
+    if(!window._QUIET_CONNECT) toast('Connection failed: '+e.message,'error');
     return false;
   }
 }
@@ -1712,11 +1712,38 @@ async function pullFromCloud(){
   }catch(e){ console.error(e); toast('Pull failed: '+e.message,'error'); }
 }
 
+function setConnecting(on, attempt){
+  let el = document.getElementById('connectingNote');
+  if(!el){
+    el = document.createElement('div'); el.id='connectingNote';
+    el.style.cssText='margin-top:12px;padding:10px;border-radius:10px;background:#eff6ff;color:#1e40af;font-size:12px;text-align:center';
+    const box = document.querySelector('#loginOverlay .login-box'); if(box) box.appendChild(el);
+  }
+  el.style.display = on ? '' : 'none';
+  el.innerHTML = attempt ? 'Still connecting to the team database (try '+(attempt+1)+')… Check your internet connection.' : 'Connecting to the team database…';
+  ['loginBtn','signupBtn'].forEach(id=>{ const b=document.getElementById(id); if(b){ b.disabled=!!on; b.style.opacity=on?'.5':''; } });
+  if(on) showLogin();
+}
 async function autoConnectCloud(){
   if(BAKED_CLOUD){
-    const ok = await connectCloud(Object.assign({}, BAKED_CLOUD), false);
-    if(ok) await startupSync();
-    return ok;
+    // Online app: never let people work on a disconnected copy (their edits would not reach
+    // the team). Keep the sign-in screen locked and retry until the database answers.
+    // Browsers delay connections in background tabs, so a retry also fires when the tab is shown.
+    setConnecting(true);
+    window._QUIET_CONNECT = true;
+    let attempt = 0;
+    while(true){
+      attempt++;
+      const ok = await connectCloud(Object.assign({}, BAKED_CLOUD), false);
+      if(ok){ window._QUIET_CONNECT = false; await startupSync(); setConnecting(false); return true; }
+      setConnecting(true, attempt);
+      await new Promise(res=>{
+        const t = setTimeout(done, 8000);
+        function done(){ clearTimeout(t); document.removeEventListener('visibilitychange', onVis); res(); }
+        function onVis(){ if(!document.hidden) done(); }
+        document.addEventListener('visibilitychange', onVis);
+      });
+    }
   }
   const cfg = localStorage.getItem(CLOUD_KEY);
   if(!cfg) return false;
@@ -6078,7 +6105,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('#loginPass').addEventListener('keypress', (e)=>{ if(e.key==='Enter') doLogin(); });
   // Try restore session
   CURRENT_USER = loadSession();
-  if(CURRENT_USER){ applyAuthUI(); if(usesDefaultPwd(CURRENT_USER)) requirePwdChange(landingView); else landingView(); notifyPendingRequests(); }
+  if(CURRENT_USER){ hideLogin(); applyAuthUI(); if(usesDefaultPwd(CURRENT_USER)) requirePwdChange(landingView); else landingView(); notifyPendingRequests(); }
   else { applyAuthUI(); showLogin(); }
 });
 // Staff can browse Sales Teams & People but not change them.
